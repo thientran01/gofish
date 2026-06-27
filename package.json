@@ -1,0 +1,17 @@
+{
+  "name": "gofish-live",
+  "version": "1.0.0",
+  "description": "Real-time multiplayer Go Fish for up to 6 players",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test-sim.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "socket.io": "^4.7.5"
+  }
+}

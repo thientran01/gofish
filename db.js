@@ -1,0 +1,54 @@
+// db.js — Supabase persistence over PostgREST (plain fetch, no SDK).
+// We only need two RPCs, so we avoid @supabase/supabase-js (and its Realtime
+// WebSocket requirement) and just POST to /rest/v1/rpc/*. Works on Node >= 18.
+const URL = process.env.SUPABASE_URL;
+const KEY = process.env.SUPABASE_KEY;
+const enabled = !!(URL && KEY);
+
+if (enabled) console.log('[db] Supabase persistence enabled.');
+else console.warn('[db] SUPABASE_URL / SUPABASE_KEY not set — running without persistence.');
+
+async function rpc(fn, body) {
+  const res = await fetch(`${URL}/rest/v1/rpc/${fn}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: KEY,
+      Authorization: `Bearer ${KEY}`,
+    },
+    body: JSON.stringify(body || {}),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`${fn} ${res.status}: ${text.slice(0, 200)}`);
+  }
+  const ct = res.headers.get('content-type') || '';
+  return ct.includes('application/json') ? res.json() : null;
+}
+
+async function recordGame({ roomCode, players, winners, durationSeconds }) {
+  if (!enabled) return;
+  try {
+    await rpc('gofish_record_game', {
+      p_room: roomCode,
+      p_players: players, // [{ name, books }]
+      p_winners: winners, // [name, ...]
+      p_duration: Math.max(0, Math.round(durationSeconds || 0)),
+    });
+  } catch (e) {
+    console.error('[db] recordGame failed:', e.message);
+  }
+}
+
+async function getLeaderboard(limit = 10) {
+  if (!enabled) return [];
+  try {
+    const data = await rpc('gofish_get_leaderboard', { p_limit: limit });
+    return Array.isArray(data) ? data : [];
+  } catch (e) {
+    console.error('[db] getLeaderboard failed:', e.message);
+    return [];
+  }
+}
+
+module.exports = { recordGame, getLeaderboard, enabled };
