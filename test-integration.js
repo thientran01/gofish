@@ -16,6 +16,14 @@ function mkClient(i) {
 
 function legalMove(s) {
   if (!s || !s.isYourTurn) return null;
+  if (s.gameType === 'thirtyone') {
+    if (s.turnPhase === 'draw') {
+      if (s.canKnock && Math.random() < 0.25) return { type: 'knock' };
+      return { type: 'draw', from: (s.discardTop && Math.random() < 0.5) ? 'discard' : 'stock' };
+    }
+    if (s.turnPhase === 'discard') return { type: 'discard', cardId: rnd(s.you.hand).id };
+    return null;
+  }
   if (s.gameType === 'crazy8s') {
     const playable = s.you.hand.filter((c) => (s.playableIds || []).includes(c.id));
     if (playable.length && Math.random() < 0.85) {
@@ -38,7 +46,7 @@ function fail(m) { console.error('FAIL:', m); process.exit(1); }
 (async () => {
   const clients = Array.from({ length: N }, (_, i) => mkClient(i));
   let finished = false;
-  const timeout = setTimeout(() => fail(`${GAME} did not finish within 25s`), 25000);
+  const timeout = setTimeout(() => fail(`${GAME} did not finish within 45s`), 45000);
 
   function onState(c, s) {
     c.state = s;
@@ -49,6 +57,12 @@ function fail(m) { console.error('FAIL:', m); process.exit(1); }
       if (!s.winnerIds.length) fail('no winners at finish');
       console.log(`OK ${GAME} finished — winner(s): ${s.winnerIds.length}`);
       verifyPersistence();
+      return;
+    }
+    // 31 between-rounds: the host advances to the next round
+    if (s.gameType === 'thirtyone' && s.reveal && s.you && s.you.isHost && c.acted !== s.version) {
+      c.acted = s.version;
+      setTimeout(() => c.sock.emit('move', { move: { type: 'next_round' } }), 8);
       return;
     }
     if (s.phase === 'playing' && s.isYourTurn && c.acted !== s.version) {

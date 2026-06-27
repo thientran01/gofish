@@ -10,9 +10,10 @@ const { Server } = require('socket.io');
 const { GameError } = require('./cards');
 const { GoFishGame } = require('./gofish');
 const { CrazyEightsGame } = require('./crazy8s');
+const { ThirtyOneGame } = require('./thirty_one');
 const db = require('./db');
 
-const GAMES = { gofish: GoFishGame, crazy8s: CrazyEightsGame };
+const GAMES = { gofish: GoFishGame, crazy8s: CrazyEightsGame, thirtyone: ThirtyOneGame };
 
 const app = express();
 const server = http.createServer(app);

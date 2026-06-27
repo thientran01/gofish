@@ -219,6 +219,34 @@
   .opp.pickable:active{transform:scale(.97);}
   @media (prefers-reduced-motion: reduce){ *{animation:none !important;} }
 
+  /* --- 31 / rules / reveal --- */
+  .howto{display:block;margin:10px auto 0;color:var(--accent);font-size:.85rem;font-weight:600;text-decoration:underline;background:none;}
+  .gametabs .gtab{font-size:.86rem;padding:.65em .25em;}
+  .result{max-height:90vh;overflow-y:auto;}
+  .help-body{text-align:left;}
+  .help-body h3{font-family:var(--display);font-size:1.4rem;margin-bottom:12px;text-align:center;}
+  .help-body p{font-size:.92rem;line-height:1.55;color:var(--txt-dim);margin-bottom:9px;}
+  .help-body p b{color:var(--txt);}
+  .score-banner{text-align:center;font-size:1rem;font-weight:600;color:var(--txt);}
+  .score-banner .val{font-family:var(--display);font-size:1.5rem;font-weight:700;}
+  .score-banner .suit.red{color:var(--red);}
+  .score-banner .hearts{margin-left:6px;letter-spacing:1px;}
+  .score-banner small{display:block;color:var(--txt-mute);font-size:.76rem;font-weight:500;margin-top:1px;}
+  .card.insuit{box-shadow:0 0 0 2px var(--accent),0 6px 14px -6px rgba(0,0,0,.6);}
+  .card.justdrew{box-shadow:0 0 0 2.5px var(--gold),0 8px 16px -6px rgba(0,0,0,.6);}
+  .opp .lives{letter-spacing:1px;}
+  .minicard{display:inline-flex;align-items:center;justify-content:center;min-width:24px;height:34px;padding:0 3px;border-radius:5px;background:var(--paper);color:var(--black);font-size:.72rem;font-weight:700;border:1px solid rgba(0,0,0,.15);}
+  .minicard.red{color:var(--red);} .minicard.best{box-shadow:0 0 0 2px var(--accent);}
+  .rv-list{display:flex;flex-direction:column;gap:8px;margin:14px 0;text-align:left;}
+  .rv-row{display:flex;flex-direction:column;gap:6px;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.05);}
+  .rv-row.lost{background:rgba(239,111,111,.12);border:1px solid rgba(239,111,111,.3);}
+  .rv-row .top{display:flex;justify-content:space-between;align-items:center;gap:8px;}
+  .rv-row .nm{font-weight:600;}
+  .rv-row .sc{font-weight:800;color:var(--accent);font-size:1.15rem;}
+  .rv-row.lost .sc{color:var(--danger);}
+  .rv-row .cards{display:flex;gap:3px;flex-wrap:wrap;align-items:center;}
+  .rv-row .tag{font-size:.72rem;color:var(--danger);font-weight:700;margin-left:4px;}
+
   @media(max-width:560px){
     .brand h1{font-size:2rem;}
     .table-area{padding:10px 8px 4px;gap:6px;}
@@ -263,11 +291,13 @@
     <div class="gametabs">
       <button class="gtab" data-game="gofish">🎣 Go Fish</button>
       <button class="gtab" data-game="crazy8s">🃏 Crazy 8s</button>
+      <button class="gtab" data-game="thirtyone">🎯 31</button>
     </div>
     <div class="brand">
       <div class="fish" id="brandIcon">🎣</div>
       <h1 id="brandTitle">Go Fish</h1>
       <p id="brandTag">Live multiplayer · 2–6 players</p>
+      <button id="howToBtn" class="howto">ℹ️ How to play</button>
     </div>
     <div class="field">
       <label for="nameInput">Your name</label>
@@ -309,7 +339,8 @@
     <div class="seats" id="seatList"></div>
     <button id="startBtn" class="btn gold" style="width:100%;">Start game</button>
     <div id="lobbyHint" class="hint"></div>
-    <button id="leaveLobbyBtn" class="btn danger sm" style="width:100%;margin-top:12px;">Leave table</button>
+    <button id="lobbyHelp" class="btn ghost sm" style="width:100%;margin-top:10px;">📖 How to play</button>
+    <button id="leaveLobbyBtn" class="btn danger sm" style="width:100%;margin-top:8px;">Leave table</button>
   </div>
 </div>
 
@@ -319,6 +350,7 @@
     <div class="rc"><small id="topGame">Room</small><span id="gameCode">----</span></div>
     <div class="spacer"></div>
     <div id="topChips"></div>
+    <button id="helpBtn" class="pool-chip tap" title="How to play" aria-label="How to play">📖</button>
     <button id="logBtn" class="pool-chip tap" title="Game log" aria-label="Game log">📜</button>
   </div>
   <div class="table-area">
@@ -356,6 +388,23 @@
   </div>
 </div>
 
+<div id="rulesModal" class="overlay hidden">
+  <div class="result">
+    <div class="help-body" id="rulesContent"></div>
+    <button id="rulesClose" class="btn gold" style="width:100%;margin-top:6px;">Got it 👍</button>
+  </div>
+</div>
+
+<div id="revealModal" class="overlay hidden">
+  <div class="result">
+    <div class="trophy">🃏</div>
+    <h2 id="revealTitle">Round over</h2>
+    <div class="sub" id="revealSub"></div>
+    <div class="rv-list" id="revealList"></div>
+    <button id="revealNext" class="btn gold" style="width:100%;">Next round →</button>
+  </div>
+</div>
+
 <div id="toast" class="toast"></div>
 <div id="netStatus" class="netstatus hidden">⟳ Reconnecting…</div>
 
@@ -373,6 +422,24 @@
   const META = {
     gofish:  { name:'Go Fish',  icon:'🎣', tag:'Collect four of a kind — most books wins.' },
     crazy8s: { name:'Crazy 8s', icon:'🃏', tag:'Match the pile, ditch your hand. 8s are wild.' },
+    thirtyone:{ name:'31',      icon:'🎯', tag:'Highest single-suit total. Aim for 31. 3 lives.' },
+  };
+  const RULES = {
+    gofish: `<h3>🎣 Go Fish</h3>
+      <p><b>Goal:</b> collect <b>books</b> — all four cards of a rank (four Kings, four 7s…). Most books when the deck runs out wins.</p>
+      <p><b>Your turn:</b> tap a player, then tap a rank you <b>already hold</b>, and ask for it.</p>
+      <p>If they have any, you take them all and <b>go again</b>. If not — <b>Go Fish</b>: draw from the pool and your turn ends (unless you drew exactly what you asked for).</p>`,
+    crazy8s: `<h3>🃏 Crazy Eights</h3>
+      <p><b>Goal:</b> be the first to empty your hand.</p>
+      <p><b>Your turn:</b> play a card that matches the pile's <b>suit or rank</b>. <b>8s are wild</b> — play one any time and pick the next suit.</p>
+      <p>Can't play? <b>Draw</b> a card (that ends your turn).</p>`,
+    thirtyone: `<h3>🎯 How to play 31</h3>
+      <p><b>Goal:</b> get the highest total in <b>one suit</b>. The best possible is <b>31</b>.</p>
+      <p><b>Card values:</b> Ace = 11 · K/Q/J/10 = 10 · others = their number. Only cards of the <b>same suit add together</b>. (Three of a kind = 30.5.)</p>
+      <p><b>Your turn:</b> ① draw a card from the deck or the discard pile, then ② discard one. Keep building your best suit — your live score is shown at the bottom.</p>
+      <p><b>Knock ✊:</b> think you're <b>not</b> the lowest? Knock instead of drawing. Everyone else gets <b>one last turn</b>, then the <b>lowest hand loses a life</b>.</p>
+      <p><b>Hit 31 🎯:</b> the round ends instantly and <b>everyone else</b> loses a life.</p>
+      <p><b>Lives:</b> everyone starts with ❤️❤️❤️. Lose a round → lose a heart. Lose all three → you're out. <b>Last player standing wins.</b></p>`,
   };
 
   let pid = localStorage.getItem('gofish_pid');
@@ -483,6 +550,13 @@
   $('rematchBtn').onclick = ()=> socket.emit('rematch', {}, (r)=>{ if(r&&!r.ok) toast(r.error); });
   $('exitBtn').onclick = ()=>{ forgetCode(); socket.emit('leave', {}, ()=>{ location.href = location.origin; }); };
 
+  function openRules(g){ $('rulesContent').innerHTML = RULES[g]||''; $('rulesModal').classList.remove('hidden'); }
+  $('howToBtn').onclick = ()=> openRules(pickGame);
+  $('helpBtn').onclick = ()=> openRules(state&&state.gameType ? state.gameType : pickGame);
+  $('lobbyHelp').onclick = ()=> openRules(state&&state.gameType ? state.gameType : pickGame);
+  $('rulesClose').onclick = ()=> $('rulesModal').classList.add('hidden');
+  $('revealNext').onclick = ()=> socket.emit('move', {move:{type:'next_round'}}, (r)=>{ if(r&&!r.ok) toast(r.error); });
+
   const REACTIONS = ['👍','😂','🃏','😱','🔥','🤝'];
   (function buildReactBar(){ const bar=$('reactBar'); bar.innerHTML=''; REACTIONS.forEach(e=>{ const b=document.createElement('button'); b.textContent=e; b.onclick=()=>{ buzz(6); socket.emit('react',{emoji:e}); }; bar.appendChild(b); }); })();
 
@@ -527,6 +601,9 @@
     $('game').classList.toggle('hidden', !inGame);
     if(inLobby) renderLobby(s);
     if(inGame) renderGame(s);
+    const showReveal = inGame && s.gameType==='thirtyone' && s.reveal && s.phase==='playing';
+    $('revealModal').classList.toggle('hidden', !showReveal);
+    if(showReveal) renderReveal(s);
     if(s.phase==='finished'){ renderOverlay(s); $('overlay').classList.remove('hidden'); if(!overlayShown){ overlayShown=true; loadLeaderboard('overlayLbList', s.gameType); } }
     else { $('overlay').classList.add('hidden'); overlayShown=false; }
   }
@@ -555,29 +632,35 @@
     $('gameCode').textContent = myCode;
     $('topGame').textContent = META[s.gameType].name;
     renderOpponents(s);
-    if(s.gameType==='crazy8s') renderCrazy8s(s); else renderGoFish(s);
+    if(s.gameType==='crazy8s') renderCrazy8s(s);
+    else if(s.gameType==='thirtyone') renderThirtyOne(s);
+    else renderGoFish(s);
     renderLog(s.log);
   }
 
   function makeCard(card, opts){
     opts = opts || {};
     const el=document.createElement('div');
-    el.className='card '+(isRed(card.suit)?'red':'black')+(opts.pick?' pick':'')+(opts.sel?' sel':'')+(opts.dim?' dim':'')+(opts.dealIn?' deal-in':'');
+    el.className='card '+(isRed(card.suit)?'red':'black')+(opts.pick?' pick':'')+(opts.sel?' sel':'')+(opts.dim?' dim':'')+(opts.dealIn?' deal-in':'')+(opts.extra?(' '+opts.extra):'');
     el.innerHTML=`<span class="corner tl">${card.rank}<i>${SUIT[card.suit]}</i></span><span class="pip">${SUIT[card.suit]}</span><span class="corner br">${card.rank}<i>${SUIT[card.suit]}</i></span>`;
     if(opts.onclick) el.onclick=opts.onclick;
     return el;
   }
+  function cardLabel(c){ return c ? `${c.rank}${SUIT[c.suit]}` : '—'; }
 
   function renderOpponents(s){
     const opp=$('opponents'); opp.innerHTML='';
     const isGF = s.gameType==='gofish';
     s.players.filter(p=>p.id!==s.you.id).forEach(p=>{
       const canTarget = isGF && s.isYourTurn && p.handCount>0;
+      const isElim = !!p.eliminated;
       const el=document.createElement('div');
-      el.className='opp'+(p.isTurn?' turn':'')+(p.id===selTarget?' target':'')+(canTarget?' pickable':'')+(p.connected?'':' dead');
+      el.className='opp'+(p.isTurn?' turn':'')+(p.id===selTarget?' target':'')+(canTarget?' pickable':'')+((p.connected&&!isElim)?'':' dead');
       const minis = Array.from({length:Math.min(p.handCount,12)}).map(()=>'<span class="mc"></span>').join('');
-      const stat = isGF ? `<span class="books">📚 ${p.bookCount}</span>`
-                        : (p.handCount===1 ? '<span class="books" style="color:var(--danger)">1 left!</span>' : '');
+      let stat;
+      if(s.gameType==='gofish') stat = `<span class="books">📚 ${p.bookCount}</span>`;
+      else if(s.gameType==='crazy8s') stat = p.handCount===1 ? '<span class="books" style="color:var(--danger)">1 left!</span>' : '';
+      else stat = `<span class="lives">${isElim?'💀':('❤️'.repeat(Math.max(0,p.lives))||'—')}</span>${p.knocked?' ✊':''}`;
       el.innerHTML = `${p.isTurn?'<span class="turnflag">● turn</span>':''}
         <div class="hd"><span class="dot ${p.connected?'':'off'}" style="width:7px;height:7px"></span>
           <span class="av" style="background:${avatarColor(p.id)}">${initials(p.name)}</span>
@@ -686,20 +769,98 @@
     return s.log.length? esc(s.log[s.log.length-1].text) : 'Game on!';
   }
 
+  // ---------- 31 ----------
+  function renderThirtyOne(s){
+    $('topChips').innerHTML = `<div class="pool-chip">Round ${s.roundNum}</div><div class="pool-chip" title="Cards in the deck">🂠 ${s.stockCount}</div>`;
+    const cs=$('centerStage'); cs.innerHTML='';
+    const piles=document.createElement('div'); piles.className='c8-piles';
+    const drawPile=document.createElement('div'); drawPile.className='pile';
+    const stack=document.createElement('div'); stack.className='draw-stack'+(s.canDraw?' tap':''); stack.innerHTML='<div class="db"></div><div class="db"></div><div class="db"><span class="fishmark">🂠</span></div>';
+    if(s.canDraw) stack.onclick=()=>doMove({type:'draw',from:'stock'});
+    drawPile.appendChild(stack); const dl=document.createElement('div'); dl.className='lbl'; dl.textContent='deck'; drawPile.appendChild(dl);
+    const discPile=document.createElement('div'); discPile.className='pile';
+    if(s.discardTop){ const dc=makeCard(s.discardTop,{pick:s.canDraw}); if(s.canDraw) dc.onclick=()=>doMove({type:'draw',from:'discard'}); discPile.appendChild(dc); }
+    else { const ph=document.createElement('div'); ph.className='card'; ph.style.opacity='.25'; discPile.appendChild(ph); }
+    const xl=document.createElement('div'); xl.className='lbl'; xl.textContent='discard'; discPile.appendChild(xl);
+    piles.appendChild(drawPile); piles.appendChild(discPile); cs.appendChild(piles);
+    const an=document.createElement('div'); an.className='announce'; an.innerHTML=announce31(s); cs.appendChild(an);
+
+    $('rankChips').style.display='none'; $('rankChips').innerHTML='';
+    const yb=$('youBooks'); yb.style.display='';
+    if(s.you.eliminated){ yb.innerHTML='<div class="score-banner">You’re out — spectating 👀</div>'; }
+    else {
+      const suit=s.you.bestSuit, trips=s.you.trips, hearts='❤️'.repeat(Math.max(0,s.you.lives));
+      const valHtml = trips ? '30.5' : `<span class="suit ${isRed(suit)?'red':''}">${SUIT[suit]||''} ${s.you.score}</span>`;
+      const note = s.you.score===31 ? '31! 🎯 you win the round' : (trips ? 'three of a kind = 30.5' : 'add up cards of the same suit');
+      yb.innerHTML = `<div class="score-banner">Your best <span class="val">${valHtml}</span> / 31 <span class="hearts">${hearts}</span><small>${note}</small></div>`;
+    }
+
+    const handEl=$('hand'); handEl.innerHTML=''; const newIds=new Set();
+    s.you.hand.forEach(c=>{ newIds.add(c.id);
+      const inSuit = !s.you.trips && c.suit===s.you.bestSuit;
+      const drew = c.id===s.you.drawnId;
+      const can = s.mustDiscard;
+      const el=makeCard(c,{pick:can, dealIn:!prevHandIds.has(c.id), extra:(drew?'justdrew':(inSuit?'insuit':''))});
+      if(can) el.onclick=()=>{ buzz(8); doMove({type:'discard',cardId:c.id}); };
+      handEl.appendChild(el);
+    });
+    prevHandIds=newIds;
+
+    const bar=$('actionBar'); bar.innerHTML=''; const prompt=$('prompt');
+    if(!s.isYourTurn || s.you.eliminated){
+      prompt.className='prompt';
+      const cur=s.players.find(p=>p.id===s.turnId);
+      prompt.textContent = s.you.eliminated ? 'You’re out — watching the rest play.' : (cur?`Waiting for ${cur.name}…`:'');
+      return;
+    }
+    prompt.className='prompt act';
+    if(s.canDraw){
+      prompt.textContent = s.knockerId ? 'Last turn! Draw a card, then discard.' : 'Your turn — draw a card, or knock.';
+      const d1=document.createElement('button'); d1.className='btn'; d1.textContent='🂠 Draw from deck'; d1.onclick=()=>doMove({type:'draw',from:'stock'}); bar.appendChild(d1);
+      if(s.discardTop){ const d2=document.createElement('button'); d2.className='btn ghost'; d2.textContent=`Take ${cardLabel(s.discardTop)}`; d2.onclick=()=>doMove({type:'draw',from:'discard'}); bar.appendChild(d2); }
+      if(s.canKnock){ const k=document.createElement('button'); k.className='btn gold'; k.textContent='✊ Knock'; k.onclick=()=>{ if(confirm('Knock? You keep your hand and skip drawing. Everyone else gets one last turn, then the lowest hand loses a life.')) doMove({type:'knock'}); }; bar.appendChild(k); }
+    } else if(s.mustDiscard){
+      prompt.textContent='Now tap a card to discard ↓';
+    }
+    if(s.you.isHost){ const e=document.createElement('button'); e.className='btn danger sm'; e.textContent='End game'; e.onclick=()=>endGame('End the match now? Player with the most lives wins.'); bar.appendChild(e); }
+  }
+  function announce31(s){
+    if(s.knockerId){ const k=s.players.find(p=>p.id===s.knockerId); return `✊ <b>${esc(k?k.name:'?')}</b> knocked — last turn for everyone!`; }
+    return s.log.length? esc(s.log[s.log.length-1].text) : 'Round on!';
+  }
+  function renderReveal(s){
+    const r=s.reveal;
+    const livesOf=id=>(r.lives.find(l=>l.id===id)||{lives:0,eliminated:false});
+    let title, sub;
+    if(r.reason==='31'){ const d=r.scores.find(x=>x.id===r.declarerId); title=`${d?esc(d.name):'Someone'} hit 31! 🎯`; sub='Everyone else loses a life.'; }
+    else { title='Round over'; sub = r.reason==='knock'?'A knock ended it — lowest hand loses a life.':'Lowest hand loses a life.'; }
+    $('revealTitle').innerHTML=title; $('revealSub').textContent=sub;
+    const sorted=[...r.scores].sort((a,b)=>b.score-a.score);
+    $('revealList').innerHTML = sorted.map(sc=>{
+      const lost=r.losers.includes(sc.id); const lv=livesOf(sc.id);
+      const cards=sc.hand.map(c=>`<span class="minicard ${isRed(c.suit)?'red':''} ${(!sc.trips&&c.suit===sc.suit)?'best':''}">${c.rank}${SUIT[c.suit]}</span>`).join('');
+      const hearts = lv.eliminated?'💀 out':('❤️'.repeat(Math.max(0,lv.lives))||'—');
+      return `<div class="rv-row ${lost?'lost':''}">
+        <div class="top"><span class="nm">${esc(sc.name)} <span style="font-size:.8rem;color:var(--txt-mute)">${hearts}</span></span><span class="sc">${sc.trips?'30.5':sc.score}</span></div>
+        <div class="cards">${cards}${lost?'<span class="tag">−1 life</span>':''}</div></div>`;
+    }).join('');
+    $('revealNext').textContent = r.matchOver ? 'See final results →' : 'Next round →';
+  }
+
   // ---------- log / overlay / leaderboard ----------
   function renderLog(log){ const box=$('logItems'); box.innerHTML = log.map(l=>`<div class="li ${l.type}">${esc(l.text)}</div>`).join(''); box.scrollTop = box.scrollHeight; }
 
   function renderOverlay(s){
-    const isGF = s.gameType==='gofish';
-    const sorted=[...s.players].sort((a,b)=> isGF ? b.bookCount-a.bookCount : a.handCount-b.handCount);
+    const g = s.gameType;
+    const sorted=[...s.players].sort((a,b)=> g==='gofish' ? b.bookCount-a.bookCount : g==='crazy8s' ? a.handCount-b.handCount : b.lives-a.lives);
     const winners = s.players.filter(p=>s.winnerIds.includes(p.id)).map(p=>p.name);
     const iWon = s.winnerIds.includes(s.you.id);
-    $('resTrophy').textContent = iWon?'🏆':META[s.gameType].icon;
+    $('resTrophy').textContent = iWon?'🏆':META[g].icon;
     $('resTitle').textContent = winners.length>1 ? "It's a tie!" : (winners[0]?`${winners[0]} wins!`:'Game Over');
     $('resSub').textContent = iWon ? 'You won! 🎉' : (winners.length?`${winners.join(' & ')} took it.`:'');
     const st=$('standings'); st.innerHTML='';
     sorted.forEach((p,i)=>{ const el=document.createElement('div'); el.className='standing'+(s.winnerIds.includes(p.id)?' win':'');
-      const val = isGF ? `${p.bookCount} 📚` : `${p.handCount} left`;
+      const val = g==='gofish' ? `${p.bookCount} 📚` : g==='crazy8s' ? `${p.handCount} left` : (p.eliminated?'💀':('❤️'.repeat(Math.max(0,p.lives))||'—'));
       el.innerHTML=`<span class="pl">${i+1}</span><span class="nm">${esc(p.name)}${p.id===s.you.id?' (you)':''}</span><span class="bk">${val}</span>`; st.appendChild(el); });
     $('overlayLb').querySelector('h3').textContent = `🏆 ${META[s.gameType].name} leaderboard`;
     $('rematchBtn').style.display = s.you.isHost?'inline-flex':'none';
