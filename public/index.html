@@ -31,6 +31,7 @@
     background-attachment:fixed;
     min-height:100dvh; overflow-x:hidden;
     -webkit-font-smoothing:antialiased;
+    overscroll-behavior:none; touch-action:manipulation;
   }
   button{font-family:inherit;cursor:pointer;border:none;color:inherit;background:none;}
   input{font-family:inherit;}
@@ -104,14 +105,16 @@
   .hint{text-align:center;color:var(--txt-mute);font-size:.9rem;margin-top:6px;}
 
   /* ---------- game table ---------- */
-  #game{display:flex;flex-direction:column;min-height:100dvh;}
-  .topbar{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.08);background:rgba(8,22,17,.5);position:sticky;top:0;z-index:20;backdrop-filter:blur(8px);}
+  #game{display:flex;flex-direction:column;height:100dvh;}
+  .topbar{flex:none;display:flex;align-items:center;gap:8px;padding:max(10px,env(safe-area-inset-top)) 14px 10px;border-bottom:1px solid rgba(255,255,255,.08);background:rgba(8,22,17,.6);z-index:20;backdrop-filter:blur(8px);}
   .topbar .rc{font-weight:700;color:var(--gold);letter-spacing:.12em;font-family:var(--display);}
   .topbar .rc small{display:block;font-family:var(--ui);font-size:.6rem;letter-spacing:.1em;color:var(--txt-mute);font-weight:600;text-transform:uppercase;}
   .topbar .spacer{flex:1;}
   .pool-chip{display:flex;align-items:center;gap:6px;font-size:.85rem;color:var(--txt-dim);background:rgba(255,255,255,.06);padding:.4em .7em;border-radius:10px;}
+  .pool-chip.tap{cursor:pointer;border:none;color:var(--txt);transition:transform .1s, background .15s;}
+  .pool-chip.tap:active{transform:scale(.93);background:rgba(255,255,255,.12);}
 
-  .table-area{flex:1;display:flex;flex-direction:column;gap:8px;padding:14px 12px 6px;}
+  .table-area{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;display:flex;flex-direction:column;gap:8px;padding:14px 12px 6px;}
   .opponents{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;}
   .opp{
     position:relative;width:132px;background:rgba(255,255,255,.045);border:1.5px solid rgba(255,255,255,.09);
@@ -145,7 +148,7 @@
   .announce b{color:var(--gold);}
 
   /* your zone */
-  .you-zone{background:rgba(6,18,14,.62);border-top:1px solid rgba(255,255,255,.1);padding:10px 10px max(12px,env(safe-area-inset-bottom));backdrop-filter:blur(8px);position:sticky;bottom:0;z-index:15;}
+  .you-zone{flex:none;background:rgba(6,18,14,.72);border-top:1px solid rgba(255,255,255,.1);padding:10px 10px max(12px,env(safe-area-inset-bottom));backdrop-filter:blur(8px);z-index:15;}
   .prompt{text-align:center;font-size:.92rem;min-height:1.3em;margin-bottom:8px;color:var(--txt-dim);font-weight:500;}
   .prompt.act{color:var(--gold);font-weight:600;}
   .you-books{display:flex;gap:4px;flex-wrap:wrap;justify-content:center;margin-bottom:8px;min-height:0;}
@@ -215,9 +218,53 @@
   .toast.show{transform:translateX(-50%) translateY(0);}
   .netstatus{position:fixed;top:14px;left:50%;transform:translateX(-50%);background:rgba(20,16,6,.96);border:1px solid var(--gold);color:var(--gold);padding:.5em 1em;border-radius:12px;z-index:280;font-size:.85rem;font-weight:600;}
 
+  /* --- micro-interactions & life --- */
+  @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+  .deck-vis .fishmark{animation:bob 2.8s ease-in-out infinite;}
+  @keyframes turnpulse{0%,100%{box-shadow:0 0 0 1px var(--gold),0 0 18px -6px var(--gold);}50%{box-shadow:0 0 0 1px var(--gold),0 0 34px 0 var(--gold);}}
+  .opp.turn{animation:turnpulse 1.9s ease-in-out infinite;}
+  .hand .card.pick:active{transform:translateY(-10px);}
+  .rank-chip:active{transform:scale(.93);}
+  .opp.pickable:active{transform:scale(.97);}
+  .you-zone{transition:box-shadow .3s, border-color .3s;}
+  .you-zone.myturn{box-shadow:0 -1px 0 0 var(--gold), 0 -12px 32px -18px var(--gold);border-top-color:rgba(233,196,106,.55);}
+  .hand,.logitems{overscroll-behavior:contain;}
+  @media (prefers-reduced-motion: reduce){ *{animation:none !important;} }
+
   @media(max-width:560px){
-    .opp{width:108px;}
     .brand h1{font-size:2rem;}
+    .table-area{padding:10px 8px 4px;gap:6px;}
+    .opponents{gap:6px;}
+    .opp{width:calc((100% - 12px)/3);padding:7px 7px 8px;border-radius:13px;}
+    .opp .hd{gap:5px;margin-bottom:5px;}
+    .opp .av{width:24px;height:24px;font-size:.7rem;}
+    .opp .nm{font-size:.78rem;}
+    .opp .mini-cards{height:18px;}
+    .opp .mini-cards .mc{width:12px;height:17px;margin-left:-7px;border-radius:3px;}
+    .opp .stats{font-size:.66rem;margin-top:6px;}
+    .opp .turnflag{font-size:.54rem;padding:.14em .4em;top:-8px;}
+    .center-stage{min-height:50px;gap:5px;}
+    .announce{font-size:.88rem;padding:.4em .85em;}
+    .you-zone{padding:8px 8px max(10px,env(safe-area-inset-bottom));}
+    .prompt{font-size:.92rem;margin-bottom:6px;}
+    .you-books{margin-bottom:6px;}
+    .hand{flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;padding:6px 2px 4px;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
+    .hand::-webkit-scrollbar{display:none;}
+    .hand .card:first-child{margin-left:6px;}
+    .action-bar{margin-top:8px;}
+    .react-bar{margin-top:8px;gap:4px;}
+    .react-bar button{font-size:1.15rem;padding:.2em .42em;}
+  }
+  /* Phones in landscape — very short height: shrink cards, drop nonessentials. */
+  @media(max-height:480px) and (orientation:landscape){
+    :root{--card-w:clamp(36px,6.5vw,52px);}
+    .opp{width:104px;padding:5px 6px 6px;}
+    .center-stage{min-height:0;gap:4px;}
+    .deck-count,.announce{font-size:.78rem;}
+    .react-bar{display:none;}
+    .you-zone{padding:6px 8px max(8px,env(safe-area-inset-bottom));}
+    .you-books{margin-bottom:4px;}
+    .prompt{margin-bottom:4px;}
   }
 </style>
 </head>
@@ -279,8 +326,9 @@
   <div class="topbar">
     <div class="rc"><small>Room</small><span id="gameCode">----</span></div>
     <div class="spacer"></div>
-    <div class="pool-chip">🂠 <span id="poolCount">0</span> in pool</div>
-    <div class="pool-chip">📚 <span id="totalBooks">0</span>/13</div>
+    <div class="pool-chip" title="Cards left in the pool">🂠 <span id="poolCount">0</span></div>
+    <div class="pool-chip" title="Books completed">📚 <span id="totalBooks">0</span>/13</div>
+    <button id="logBtn" class="pool-chip tap" title="Game log" aria-label="Game log">📜</button>
   </div>
 
   <div class="table-area">
@@ -295,7 +343,7 @@
     </div>
   </div>
 
-  <div class="you-zone">
+  <div class="you-zone" id="youZone">
     <div class="prompt" id="prompt"></div>
     <div class="you-books" id="youBooks"></div>
     <div class="hand" id="hand"></div>
@@ -305,7 +353,6 @@
   </div>
 </div>
 
-<button id="logToggle" class="btn ghost sm log-toggle hidden">📜 Log</button>
 <div class="scrim" id="scrim"></div>
 <div class="logdrawer" id="logDrawer">
   <h3>Game Log <button class="btn ghost sm" id="closeLog">✕</button></h3>
@@ -352,12 +399,26 @@
   let lastVersionSeen = -1;
   let overlayShown = false;
   let prevHandIds = new Set();
+  let wasMyTurn = false, myBookCount = 0;
 
   function rememberCode(c){ myCode=c; localStorage.setItem('gofish_code', c); }
   function forgetCode(){ myCode=null; localStorage.removeItem('gofish_code'); }
-  function showEntry(){ ['lobby','game','overlay','logToggle'].forEach(id=>$(id).classList.add('hidden')); $('entry').classList.remove('hidden'); }
+  function showEntry(){ ['lobby','game','overlay'].forEach(id=>$(id).classList.add('hidden')); $('entry').classList.remove('hidden'); }
   function showReconnecting(){ $('netStatus').classList.remove('hidden'); }
   function hideReconnecting(){ $('netStatus').classList.add('hidden'); }
+  function buzz(p){ try{ if(navigator.vibrate) navigator.vibrate(p); }catch(e){} }
+
+  // Tactile + visual feedback on turn changes and completed books.
+  function feedback(s){
+    if(!s.you) return;
+    if(s.phase!=='playing'){ if(s.phase==='lobby') myBookCount=0; wasMyTurn=false; $('youZone').classList.remove('myturn'); return; }
+    $('youZone').classList.toggle('myturn', !!s.isYourTurn);
+    if(s.isYourTurn && !wasMyTurn) buzz(18);
+    wasMyTurn = s.isYourTurn;
+    const bc = s.you.books.length;
+    if(bc > myBookCount) buzz([12,45,12]);
+    myBookCount = bc;
+  }
 
   // ---------- entry ----------
   $('nameInput').value = myName;
@@ -415,7 +476,7 @@
   function fallbackCopy(text, done){ const t=document.createElement('textarea'); t.value=text; document.body.appendChild(t); t.select(); try{document.execCommand('copy');}catch(e){} document.body.removeChild(t); done(); }
 
   // ---------- game actions ----------
-  $('logToggle').onclick = ()=> setLog(true);
+  $('logBtn').onclick = ()=> setLog(true);
   $('closeLog').onclick = ()=> setLog(false);
   $('scrim').onclick = ()=> setLog(false);
   function setLog(on){ $('logDrawer').classList.toggle('open',on); $('scrim').classList.toggle('show',on); }
@@ -426,16 +487,17 @@
   const REACTIONS = ['👍','😂','🎣','😱','🔥','🤝'];
   function buildReactBar(){
     const bar=$('reactBar'); bar.innerHTML='';
-    REACTIONS.forEach(e=>{ const b=document.createElement('button'); b.textContent=e; b.onclick=()=>socket.emit('react',{emoji:e}); bar.appendChild(b); });
+    REACTIONS.forEach(e=>{ const b=document.createElement('button'); b.textContent=e; b.onclick=()=>{ buzz(6); socket.emit('react',{emoji:e}); }; bar.appendChild(b); });
   }
   buildReactBar();
 
   function doAsk(){
     if(!selTarget || !selRank) return;
+    buzz(10);
     socket.emit('ask', {targetId:selTarget, rank:selRank}, (r)=>{ if(r&&!r.ok) toast(r.error); });
     selTarget=null; selRank=null;
   }
-  function doDraw(){ socket.emit('draw', {}, (r)=>{ if(r&&!r.ok) toast(r.error); }); }
+  function doDraw(){ buzz(10); socket.emit('draw', {}, (r)=>{ if(r&&!r.ok) toast(r.error); }); }
 
   // ---------- socket events ----------
   socket.on('connect', ()=>{
@@ -449,7 +511,7 @@
   });
   socket.on('disconnect', ()=> showReconnecting());
   socket.on('connect_error', ()=> showReconnecting());
-  socket.on('state', (s)=>{ state = s; reconcileSelection(s); render(s); });
+  socket.on('state', (s)=>{ state = s; reconcileSelection(s); render(s); feedback(s); });
   socket.on('error_msg', (m)=> toast(m));
   socket.on('reaction', (r)=> floatEmoji(r.emoji));
 
@@ -471,7 +533,6 @@
     const inGame = joined && s.phase!=='lobby';
     $('lobby').classList.toggle('hidden', !inLobby);
     $('game').classList.toggle('hidden', !inGame);
-    $('logToggle').classList.toggle('hidden', !inGame);
 
     if(inLobby) renderLobby(s);
     if(inGame) renderGame(s);
