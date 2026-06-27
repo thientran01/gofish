@@ -11,8 +11,8 @@ function rankLabel(rank) {
   return RANK_NAMES[rank] || rank;
 }
 function rankPlural(rank) {
-  const base = rankLabel(rank);
-  return base.endsWith('6') || base.endsWith('x') ? base + 'es' : base + 's';
+  // None of the 13 rank labels (Ace, 2–10, Jack, Queen, King) need "es".
+  return rankLabel(rank) + 's';
 }
 
 class GameError extends Error {
@@ -66,19 +66,26 @@ class GoFishGame {
     this.startedAt = null;
     this.endedAt = null;
     this.version = 0; // bumped on every mutation
+    this._idSeq = 0;  // source of public, server-side player ids
   }
 
   // ---- player management ----------------------------------------------------
+  // Public id (broadcast to everyone) is distinct from the private reconnect
+  // token (never broadcast), so knowing a player's id can't hijack their seat.
   getPlayer(id) {
     return this.players.find((p) => p.id === id) || null;
+  }
+
+  getPlayerByToken(token) {
+    return this.players.find((p) => p.token === token) || null;
   }
 
   currentPlayer() {
     return this.players[this.turnIndex] || null;
   }
 
-  addPlayer({ id, name }) {
-    const existing = this.getPlayer(id);
+  addPlayer({ token, name }) {
+    const existing = this.getPlayerByToken(token);
     if (existing) {
       existing.connected = true;
       return existing;
@@ -87,7 +94,8 @@ class GoFishGame {
     if (this.players.length >= 6) throw new GameError('Room is full (max 6 players).');
     const clean = String(name || '').trim().slice(0, 16) || `Player ${this.players.length + 1}`;
     const player = {
-      id,
+      id: 'pl_' + (++this._idSeq), // public identity
+      token,                       // private reconnect token, never broadcast
       name: clean,
       hand: [],
       books: [],
@@ -317,6 +325,13 @@ class GoFishGame {
           this.pushLog('draw', `${cur.name} had no cards and drew from the pool.`);
           this.checkBooks(cur);
           this.version++;
+          // Defensive: if that was the last card and nobody else holds any,
+          // cur has no legal move — end rather than park. (Unreachable in a
+          // conserved deal, but guards against future changes.)
+          if (this.deck.length === 0 && cur.hand.length > 0 && !this.opponentsHaveCards(cur)) {
+            this.finalize();
+            return;
+          }
           return; // cur can now act
         }
         this.turnIndex = this.nextIndex(this.turnIndex);

@@ -41,8 +41,8 @@ for (let g = 0; g < GAMES; g++) {
   const rng = mulberry32(g + 1);
   const game = new GoFishGame({ rng });
   const nPlayers = 2 + Math.floor(rng() * 5); // 2..6
-  for (let i = 0; i < nPlayers; i++) game.addPlayer({ id: 'p' + i, name: 'P' + i });
-  game.start('p0');
+  for (let i = 0; i < nPlayers; i++) game.addPlayer({ token: 'p' + i, name: 'P' + i });
+  game.start();
   assert(game.cardCount() === 52, 'card conservation after deal', { g });
 
   let steps = 0;
@@ -95,10 +95,11 @@ console.log('Total-books distribution at end:', JSON.stringify(bookDist));
 (function disconnectTest() {
   const rng = mulberry32(999);
   const game = new GoFishGame({ rng });
-  for (let i = 0; i < 4; i++) game.addPlayer({ id: 'd' + i, name: 'D' + i });
-  game.start('d0');
-  game.setConnected('d1', false);
-  game.setConnected('d2', false);
+  const ps = [];
+  for (let i = 0; i < 4; i++) ps.push(game.addPlayer({ token: 'd' + i, name: 'D' + i }));
+  game.start();
+  game.setConnected(ps[1].id, false);
+  game.setConnected(ps[2].id, false);
   let steps = 0;
   while (game.phase === 'playing') {
     if (++steps > 5000) { console.error('disconnect test stalled'); process.exit(1); }

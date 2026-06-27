@@ -213,6 +213,7 @@
 
   .toast{position:fixed;top:14px;left:50%;transform:translateX(-50%) translateY(-80px);background:rgba(20,8,8,.95);border:1px solid var(--danger);color:#ffd9d9;padding:.7em 1.1em;border-radius:12px;z-index:300;transition:transform .3s;font-size:.9rem;max-width:90vw;}
   .toast.show{transform:translateX(-50%) translateY(0);}
+  .netstatus{position:fixed;top:14px;left:50%;transform:translateX(-50%);background:rgba(20,16,6,.96);border:1px solid var(--gold);color:var(--gold);padding:.5em 1em;border-radius:12px;z-index:280;font-size:.85rem;font-weight:600;}
 
   @media(max-width:560px){
     .opp{width:108px;}
@@ -317,6 +318,7 @@
     <h2 id="resTitle">Game Over</h2>
     <div class="sub" id="resSub"></div>
     <div class="standings" id="standings"></div>
+    <div class="lb" id="overlayLb"><h3>🏆 All-time leaderboard</h3><div id="overlayLbList"><div class="lb-empty">Loading…</div></div></div>
     <div class="row">
       <button id="rematchBtn" class="btn gold">Rematch</button>
       <button id="exitBtn" class="btn ghost">Leave</button>
@@ -326,6 +328,7 @@
 </div>
 
 <div id="toast" class="toast"></div>
+<div id="netStatus" class="netstatus hidden">⟳ Reconnecting…</div>
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
@@ -344,10 +347,17 @@
 
   const socket = io({ transports:['websocket','polling'] });
   let state = null;
-  let myCode = null;
+  let myCode = localStorage.getItem('gofish_code') || null;
   let selTarget = null, selRank = null;
   let lastVersionSeen = -1;
+  let overlayShown = false;
   let prevHandIds = new Set();
+
+  function rememberCode(c){ myCode=c; localStorage.setItem('gofish_code', c); }
+  function forgetCode(){ myCode=null; localStorage.removeItem('gofish_code'); }
+  function showEntry(){ ['lobby','game','overlay','logToggle'].forEach(id=>$(id).classList.add('hidden')); $('entry').classList.remove('hidden'); }
+  function showReconnecting(){ $('netStatus').classList.remove('hidden'); }
+  function hideReconnecting(){ $('netStatus').classList.add('hidden'); }
 
   // ---------- entry ----------
   $('nameInput').value = myName;
@@ -375,7 +385,7 @@
     $('entryErr').textContent='';
     socket.emit('create_room', {name, pid}, (res)=>{
       if(!res || !res.ok){ $('entryErr').textContent = (res&&res.error)||'Could not create room.'; return; }
-      myCode = res.code;
+      rememberCode(res.code);
     });
   };
   $('joinBtn').onclick = ()=>{
@@ -385,7 +395,7 @@
     $('entryErr').textContent='';
     socket.emit('join_room', {code, name, pid}, (res)=>{
       if(!res || !res.ok){ $('entryErr').textContent = (res&&res.error)||'Could not join.'; return; }
-      myCode = res.code;
+      rememberCode(res.code);
     });
   };
   $('codeInput').addEventListener('keydown', e=>{ if(e.key==='Enter') $('joinBtn').click(); });
@@ -395,7 +405,7 @@
   $('startBtn').onclick = ()=> socket.emit('start_game', {}, (r)=>{ if(r&&!r.ok) toast(r.error); });
   $('copyCodeBtn').onclick = ()=> copy(myCode, $('copyCodeBtn'), '📋 Copy code');
   $('shareLinkBtn').onclick = ()=> copy(location.origin + '/?room=' + myCode, $('shareLinkBtn'), '🔗 Copy invite link');
-  $('leaveLobbyBtn').onclick = ()=>{ socket.emit('leave', {}, ()=>{ location.href = location.origin; }); };
+  $('leaveLobbyBtn').onclick = ()=>{ forgetCode(); socket.emit('leave', {}, ()=>{ location.href = location.origin; }); };
 
   function copy(text, btn, label){
     const done=()=>{ const o=btn.textContent; btn.textContent='✓ Copied!'; setTimeout(()=>btn.textContent=label,1400); };
@@ -411,7 +421,7 @@
   function setLog(on){ $('logDrawer').classList.toggle('open',on); $('scrim').classList.toggle('show',on); }
 
   $('rematchBtn').onclick = ()=> socket.emit('rematch', {}, (r)=>{ if(r&&!r.ok) toast(r.error); });
-  $('exitBtn').onclick = ()=>{ location.href = location.origin; };
+  $('exitBtn').onclick = ()=>{ forgetCode(); socket.emit('leave', {}, ()=>{ location.href = location.origin; }); };
 
   const REACTIONS = ['👍','😂','🎣','😱','🔥','🤝'];
   function buildReactBar(){
@@ -429,12 +439,26 @@
 
   // ---------- socket events ----------
   socket.on('connect', ()=>{
-    // auto-rejoin on reconnect
-    if(myCode){ socket.emit('join_room', {code:myCode, name:myName, pid}, ()=>{}); }
+    hideReconnecting();
+    // auto-rejoin after a reconnect OR a fresh page load with a stored room
+    if(myCode){
+      socket.emit('join_room', {code:myCode, name:myName, pid}, (res)=>{
+        if(!res || !res.ok){ forgetCode(); state=null; showEntry(); toast('That game is no longer available.'); }
+      });
+    }
   });
-  socket.on('state', (s)=>{ state = s; render(s); });
+  socket.on('disconnect', ()=> showReconnecting());
+  socket.on('connect_error', ()=> showReconnecting());
+  socket.on('state', (s)=>{ state = s; reconcileSelection(s); render(s); });
   socket.on('error_msg', (m)=> toast(m));
   socket.on('reaction', (r)=> floatEmoji(r.emoji));
+
+  // Drop selections that no longer make sense (turn passed, target emptied, rank gone).
+  function reconcileSelection(s){
+    if(!s.you || !s.isYourTurn){ selTarget=null; selRank=null; return; }
+    if(selTarget){ const t=s.players.find(p=>p.id===selTarget); if(!t || t.id===s.you.id || t.handCount===0) selTarget=null; }
+    if(selRank && !s.askableRanks.includes(selRank)) selRank=null;
+  }
 
   // ---------- rendering ----------
   function avatarColor(id){ let h=0; for(let i=0;i<id.length;i++) h=(h*31+id.charCodeAt(i))>>>0; return AVATAR_COLORS[h%AVATAR_COLORS.length]; }
@@ -453,8 +477,10 @@
     if(inGame) renderGame(s);
 
     // overlay
-    if(s.phase==='finished'){ renderOverlay(s); $('overlay').classList.remove('hidden'); }
-    else $('overlay').classList.add('hidden');
+    if(s.phase==='finished'){
+      renderOverlay(s); $('overlay').classList.remove('hidden');
+      if(!overlayShown){ overlayShown=true; loadLeaderboard('overlayLbList'); }
+    } else { $('overlay').classList.add('hidden'); overlayShown=false; }
 
     lastVersionSeen = s.version;
   }
@@ -592,20 +618,19 @@
     sorted.forEach((p,i)=>{ const el=document.createElement('div'); el.className='standing'+(s.winnerIds.includes(p.id)?' win':''); el.innerHTML=`<span class="pl">${i+1}</span><span class="nm">${esc(p.name)}${p.id===s.you.id?' (you)':''}</span><span class="bk">${p.bookCount} 📚</span>`; st.appendChild(el); });
     $('rematchBtn').style.display = s.you.isHost?'inline-flex':'none';
     $('overlayHint').textContent = s.you.isHost?'' : 'Waiting for the host to start a rematch…';
-    loadLeaderboard();
   }
 
   function name(s,id){ const p=s.players.find(x=>x.id===id); return p?p.name:'?'; }
 
   // ---------- leaderboard ----------
-  function loadLeaderboard(){
+  function loadLeaderboard(targetId){
+    const list=$(targetId); if(!list) return;
     fetch('/api/leaderboard').then(r=>r.json()).then(d=>{
-      const list=$('lbList');
       if(!d.leaderboard || !d.leaderboard.length){ list.innerHTML='<div class="lb-empty">No games played yet — be the first!</div>'; return; }
       list.innerHTML = d.leaderboard.map((r,i)=>`<div class="lb-row"><span class="rk">${i+1}</span><span class="nm">${esc(r.name)}</span><span class="st">${r.wins}W · ${r.books_total}📚</span></div>`).join('');
-    }).catch(()=>{ $('lbList').innerHTML='<div class="lb-empty">Leaderboard unavailable.</div>'; });
+    }).catch(()=>{ list.innerHTML='<div class="lb-empty">Leaderboard unavailable.</div>'; });
   }
-  loadLeaderboard();
+  loadLeaderboard('lbList');
 
   // ---------- fx ----------
   function floatEmoji(e){
