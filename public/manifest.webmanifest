@@ -1,7 +1,7 @@
 {
-  "name": "Go Fish · Live",
-  "short_name": "Go Fish",
-  "description": "Real-time multiplayer Go Fish — play with up to 6 friends in your browser.",
+  "name": "Card Night · Live",
+  "short_name": "Card Night",
+  "description": "Go Fish & Crazy Eights — real-time multiplayer card games for up to 6 friends.",
   "start_url": "/",
   "display": "standalone",
   "orientation": "portrait",

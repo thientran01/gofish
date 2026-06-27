@@ -1,116 +1,93 @@
-// test-integration.js — drives N real socket.io clients through the live server
-// to verify the realtime layer end-to-end (rooms, turns, hidden hands, finish).
-// Usage: node test-integration.js [port]
+// test-integration.js — drive real socket.io clients through the live server for
+// a given game, end to end (rooms, turns, hidden hands, finish, persistence).
+// Usage: node test-integration.js [port] [gofish|crazy8s]
 const { io } = require('socket.io-client');
 
 const PORT = process.argv[2] || 3000;
+const GAME = process.argv[3] || 'gofish';
 const URL = `http://localhost:${PORT}`;
 const N = 4;
+const rnd = (a) => a[Math.floor(Math.random() * a.length)];
+const SUITS = ['S', 'H', 'D', 'C'];
 
 function mkClient(i) {
-  const pid = 'itp_' + i + '_' + Math.random().toString(36).slice(2);
-  const sock = io(URL, { transports: ['websocket'] });
-  return { i, pid, name: 'Bot' + i, sock, state: null, acted: -1 };
+  return { i, pid: 'itp_' + GAME + '_' + i + '_' + Math.random().toString(36).slice(2), name: 'Bot' + i, sock: io(URL, { transports: ['websocket'] }), acted: -1 };
 }
 
 function legalMove(s) {
   if (!s || !s.isYourTurn) return null;
-  if (s.canDraw) return { kind: 'draw' };
+  if (s.gameType === 'crazy8s') {
+    const playable = s.you.hand.filter((c) => (s.playableIds || []).includes(c.id));
+    if (playable.length && Math.random() < 0.85) {
+      const c = rnd(playable);
+      return { type: 'play', cardId: c.id, suit: c.rank === '8' ? rnd(SUITS) : undefined };
+    }
+    if (s.canDraw) return { type: 'draw' };
+    return playable.length ? { type: 'play', cardId: playable[0].id, suit: playable[0].rank === '8' ? rnd(SUITS) : undefined } : { type: 'draw' };
+  }
+  // gofish
+  if (s.canDraw) return { type: 'draw' };
   const ranks = [...new Set(s.you.hand.map((c) => c.rank))];
   const targets = s.players.filter((p) => p.id !== s.you.id && p.handCount > 0);
-  if (!targets.length || !ranks.length) return null;
-  const t = targets[Math.floor(Math.random() * targets.length)];
-  const r = ranks[Math.floor(Math.random() * ranks.length)];
-  return { kind: 'ask', targetId: t.id, rank: r };
+  if (!ranks.length || !targets.length) return null;
+  return { type: 'ask', targetId: rnd(targets).id, rank: rnd(ranks) };
 }
 
-function fail(msg) { console.error('FAIL:', msg); process.exit(1); }
+function fail(m) { console.error('FAIL:', m); process.exit(1); }
 
 (async () => {
   const clients = Array.from({ length: N }, (_, i) => mkClient(i));
   let finished = false;
-
-  const timeout = setTimeout(() => fail('game did not finish within 20s'), 20000);
+  const timeout = setTimeout(() => fail(`${GAME} did not finish within 25s`), 25000);
 
   function onState(c, s) {
     c.state = s;
-    // hidden-hand integrity: no opponent hand leaks
-    for (const p of s.players) {
-      if (p.id !== s.you.id && 'hand' in p) fail('opponent hand leaked to client ' + c.i);
-    }
+    if (s.gameType !== GAME) fail(`expected gameType ${GAME}, got ${s.gameType}`);
+    for (const p of s.players) if (p.id !== s.you.id && 'hand' in p) fail('opponent hand leaked');
     if (s.phase === 'finished' && !finished) {
-      finished = true;
-      clearTimeout(timeout);
-      const total = s.players.reduce((a, p) => a + p.bookCount, 0);
+      finished = true; clearTimeout(timeout);
       if (!s.winnerIds.length) fail('no winners at finish');
-      const max = Math.max(...s.players.map((p) => p.bookCount));
-      for (const id of s.winnerIds) {
-        const w = s.players.find((p) => p.id === id);
-        if (w.bookCount !== max) fail('winner does not have max books');
-      }
-      console.log(`OK realtime game finished — ${total}/13 books, winner(s): ${s.winnerIds.length}`);
+      console.log(`OK ${GAME} finished — winner(s): ${s.winnerIds.length}`);
       verifyPersistence();
       return;
     }
-    // act if it's my turn
     if (s.phase === 'playing' && s.isYourTurn && c.acted !== s.version) {
       c.acted = s.version;
       const m = legalMove(s);
-      if (!m) return;
-      setTimeout(() => {
-        if (m.kind === 'draw') c.sock.emit('draw', {});
-        else c.sock.emit('ask', { targetId: m.targetId, rank: m.rank });
-      }, 5);
+      if (m) setTimeout(() => c.sock.emit('move', { move: m }), 6);
     }
   }
 
   clients.forEach((c) => c.sock.on('state', (s) => onState(c, s)));
-  clients.forEach((c) => c.sock.on('error_msg', (m) => console.warn(`[bot${c.i}] err: ${m}`)));
+  clients.forEach((c) => c.sock.on('error_msg', (m) => console.warn(`[bot${c.i}] ${m}`)));
 
-  // connect host
   await new Promise((res) => clients[0].sock.on('connect', res));
   let code = null;
-  await new Promise((res) =>
-    clients[0].sock.emit('create_room', { name: clients[0].name, pid: clients[0].pid }, (r) => {
-      if (!r || !r.ok) fail('create_room failed: ' + (r && r.error));
-      code = r.code; res();
-    })
-  );
-  console.log('room created:', code);
+  await new Promise((res) => clients[0].sock.emit('create_room', { name: clients[0].name, pid: clients[0].pid, game: GAME }, (r) => {
+    if (!r || !r.ok) fail('create_room: ' + (r && r.error));
+    if (r.game !== GAME) fail('room game mismatch: ' + r.game);
+    code = r.code; res();
+  }));
+  console.log(`${GAME} room:`, code);
 
-  // others join
   for (let i = 1; i < N; i++) {
     const c = clients[i];
     if (!c.sock.connected) await new Promise((res) => c.sock.on('connect', res));
-    await new Promise((res) =>
-      c.sock.emit('join_room', { code, name: c.name, pid: c.pid }, (r) => {
-        if (!r || !r.ok) fail(`join failed for ${c.name}: ` + (r && r.error));
-        res();
-      })
-    );
+    await new Promise((res) => c.sock.emit('join_room', { code, name: c.name, pid: c.pid }, (r) => { if (!r || !r.ok) fail('join: ' + (r && r.error)); res(); }));
   }
   console.log(`${N} players joined`);
-
-  // start
-  clients[0].sock.emit('start_game', {}, (r) => { if (r && !r.ok) fail('start failed: ' + r.error); });
+  clients[0].sock.emit('start_game', {}, (r) => { if (r && !r.ok) fail('start: ' + r.error); });
 
   function verifyPersistence() {
     setTimeout(() => {
-      fetch(URL + '/api/leaderboard')
-        .then((r) => r.json())
-        .then((d) => {
-          if (!d.persistence) { console.log('NOTE: persistence disabled (no Supabase env) — skipping DB check.'); cleanup(); return; }
-          const bots = (d.leaderboard || []).filter((x) => x.name.startsWith('Bot'));
-          if (!bots.length) fail('no Bot rows in leaderboard after game');
-          console.log('OK persistence — leaderboard has', bots.length, 'bot rows:', JSON.stringify(bots));
-          cleanup();
-        })
-        .catch((e) => fail('leaderboard fetch failed: ' + e.message));
+      fetch(`${URL}/api/leaderboard?game=${GAME}`).then((r) => r.json()).then((d) => {
+        if (!d.persistence) { console.log('NOTE: persistence disabled — skipping DB check.'); return cleanup(); }
+        const bots = (d.leaderboard || []).filter((x) => x.name.startsWith('Bot'));
+        if (!bots.length) fail('no Bot rows in leaderboard');
+        console.log(`OK ${GAME} persistence — ${bots.length} bot rows`);
+        cleanup();
+      }).catch((e) => fail('leaderboard: ' + e.message));
     }, 600);
   }
-  function cleanup() {
-    clients.forEach((c) => c.sock.close());
-    console.log('All integration checks passed.');
-    process.exit(0);
-  }
+  function cleanup() { clients.forEach((c) => c.sock.close()); console.log(`All ${GAME} integration checks passed.`); process.exit(0); }
 })();

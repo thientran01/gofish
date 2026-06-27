@@ -1,60 +1,10 @@
 // gofish.js — authoritative Go Fish engine (pure logic, no I/O).
 // Standard rules, 2–6 players. Suits are cosmetic; rank drives all logic.
-
-const RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
-const SUITS = ['S', 'H', 'D', 'C']; // spades, hearts, diamonds, clubs
-
-const RANK_NAMES = {
-  A: 'Ace', J: 'Jack', Q: 'Queen', K: 'King',
-};
-function rankLabel(rank) {
-  return RANK_NAMES[rank] || rank;
-}
-function rankPlural(rank) {
-  // None of the 13 rank labels (Ace, 2–10, Jack, Queen, King) need "es".
-  return rankLabel(rank) + 's';
-}
-
-class GameError extends Error {
-  constructor(message) {
-    super(message);
-    this.name = 'GameError';
-    this.isGameError = true;
-  }
-}
-
-function buildDeck() {
-  const deck = [];
-  for (const rank of RANKS) {
-    for (const suit of SUITS) {
-      deck.push({ rank, suit, id: rank + suit });
-    }
-  }
-  return deck;
-}
-
-function shuffle(arr, rng) {
-  const random = rng || Math.random;
-  const a = arr.slice();
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(random() * (i + 1));
-    const tmp = a[i];
-    a[i] = a[j];
-    a[j] = tmp;
-  }
-  return a;
-}
-
-const RANK_ORDER = RANKS.reduce((acc, r, i) => { acc[r] = i; return acc; }, {});
-function sortHand(hand) {
-  return hand.slice().sort((a, b) => {
-    if (RANK_ORDER[a.rank] !== RANK_ORDER[b.rank]) return RANK_ORDER[a.rank] - RANK_ORDER[b.rank];
-    return a.suit.localeCompare(b.suit);
-  });
-}
+const { RANKS, SUITS, rankLabel, rankPlural, GameError, buildDeck, shuffle, sortHand } = require('./cards');
 
 class GoFishGame {
   constructor(opts = {}) {
+    this.gameType = 'gofish';
     this.rng = opts.rng || Math.random;
     this.players = []; // {id, name, hand:[], books:[], connected, isHost}
     this.deck = [];
@@ -249,6 +199,21 @@ class GoFishGame {
     this.finalize();
   }
 
+  // Generic move dispatcher so the server can stay game-agnostic.
+  move(playerId, m) {
+    if (!m || typeof m !== 'object') throw new GameError('Invalid move.');
+    if (m.type === 'ask') return this.ask(playerId, m.targetId, m.rank);
+    if (m.type === 'draw') return this.draw(playerId);
+    throw new GameError('Unknown move.');
+  }
+
+  // Per-player result for persistence: score = books collected.
+  standings() {
+    return this.players.map((p) => ({
+      token: p.token, name: p.name, score: p.books.length, won: this.winnerIds.includes(p.id),
+    }));
+  }
+
   // ---- helpers --------------------------------------------------------------
   checkBooks(player) {
     const counts = {};
@@ -390,6 +355,7 @@ class GoFishGame {
     const askableRanks = you ? [...new Set(sortHand(you.hand).map((c) => c.rank))] : [];
     const canDraw = !!(isYourTurn && this.deck.length > 0 && you && !this.opponentsHaveCards(you));
     return {
+      gameType: this.gameType,
       version: this.version,
       phase: this.phase,
       deckCount: this.deck.length,
