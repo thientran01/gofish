@@ -582,6 +582,7 @@
       if(selRank && !(s.askableRanks||[]).includes(selRank)) selRank=null;
     }
     // crazy 8s: drop a pending suit choice if it's no longer our turn / card gone
+    if(s.gameType!=='crazy8s') pendingEight=null; // game switched away — clear stale suit-picker state
     if(s.gameType==='crazy8s' && pendingEight){
       const have = s.you && s.you.hand.some(c=>c.id===pendingEight && (s.playableIds||[]).includes(c.id));
       if(!s.isYourTurn || !have) pendingEight=null;

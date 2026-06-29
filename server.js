@@ -91,6 +91,7 @@ function switchGame(code) {
   if (!room) return;
   const target = SWITCH_PAIR[room.gameType];
   if (!target) return; // only the 31 <-> Crazy 8s pair toggles
+  room.likeCount = 0; // clear the tally up front so nothing below can leave it ≥ threshold and re-trigger
   const prevPlayers = room.game.players.slice().sort((a, b) => (b.isHost ? 1 : 0) - (a.isHost ? 1 : 0)); // host first
   const next = new GAMES[target]();
   const tokenToId = new Map();
@@ -209,6 +210,7 @@ io.on('connection', (socket) => {
     if (!room) throw new GameError('You are not in a room.');
     room.game.rematch(socket.data.id);
     room.recorded = false;
+    room.likeCount = 0; // fresh tally each game — don't let a near-threshold count surprise-flip the rematch
     ack(cb, { ok: true });
     broadcast(socket.data.code);
   }));
