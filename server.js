@@ -27,11 +27,18 @@ app.get('/api/leaderboard', async (req, res) => {
 });
 
 // ---- room registry ----------------------------------------------------------
-/** code -> { game, gameType, createdAt, lastActivity, recorded } */
+/** code -> { game, gameType, createdAt, lastActivity, recorded, likeCount } */
 const rooms = new Map();
 const MAX_ROOMS = 2000;
 const CREATE_COOLDOWN_MS = 2000;
-const REACT_COOLDOWN_MS = 400;
+const REACT_COOLDOWN_MS = 300;
+
+// Party easter egg: every LIKE_SWITCH_THRESHOLD 👍 sent by the whole room (cumulative, from
+// anyone) toggles the game between 31 and Crazy 8s. Those two form the toggle pair; reaching the
+// threshold flips to the other and resets the tally, so it alternates back and forth.
+const LIKE_SWITCH_THRESHOLD = 10;
+const SWITCH_PAIR = { thirtyone: 'crazy8s', crazy8s: 'thirtyone' };
+const GAME_LABEL = { gofish: 'Go Fish', crazy8s: 'Crazy 8s', thirtyone: '31' };
 
 const isStr = (v) => typeof v === 'string';
 function reqToken(pid) { if (!isStr(pid) || pid.length < 4 || pid.length > 128) throw new GameError('Invalid session.'); }
@@ -75,6 +82,45 @@ async function maybeRecord(code) {
 
 function ack(cb, payload) { if (typeof cb === 'function') cb(payload); }
 
+// Toggle a room between 31 and Crazy 8s (the party-likes easter egg). Rebuilds the engine with
+// the same players — host, seat order, and connection state preserved — remaps each live socket
+// onto its new seat id (the old ids are now stale), resets the like tally, announces it, and
+// auto-starts when ≥2 players are connected (otherwise drops cleanly into the new game's lobby).
+function switchGame(code) {
+  const room = rooms.get(code);
+  if (!room) return;
+  const target = SWITCH_PAIR[room.gameType];
+  if (!target) return; // only the 31 <-> Crazy 8s pair toggles
+  room.likeCount = 0; // clear the tally up front so nothing below can leave it ≥ threshold and re-trigger
+  const prevPlayers = room.game.players.slice().sort((a, b) => (b.isHost ? 1 : 0) - (a.isHost ? 1 : 0)); // host first
+  const next = new GAMES[target]();
+  const tokenToId = new Map();
+  for (const p of prevPlayers) {
+    const np = next.addPlayer({ token: p.token, name: p.name });
+    np.connected = p.connected; // addPlayer defaults to connected:true — keep who's really here
+    tokenToId.set(p.token, np.id);
+  }
+  room.game = next;
+  room.gameType = target;
+  room.recorded = false;
+  room.likeCount = 0;
+  const sockets = io.sockets.adapter.rooms.get(code);
+  if (sockets) {
+    for (const sid of sockets) {
+      const s = io.sockets.sockets.get(sid);
+      if (s && s.data.token && tokenToId.has(s.data.token)) s.data.id = tokenToId.get(s.data.token);
+    }
+  }
+  const connected = next.players.filter((p) => p.connected).length;
+  const host = next.players.find((p) => p.isHost);
+  let autoStarted = false;
+  if (host && connected >= 2) { try { next.start(host.id); autoStarted = true; } catch (e) { /* fall back to lobby */ } }
+  io.to(code).emit('system', autoStarted
+    ? `🎉 The party flipped the game to ${GAME_LABEL[target]}!`
+    : `🎉 Switched to ${GAME_LABEL[target]} — host can start when ready.`);
+  broadcast(code);
+}
+
 io.on('connection', (socket) => {
   socket.data.token = null;
   socket.data.id = null;
@@ -111,7 +157,7 @@ io.on('connection', (socket) => {
     if (rooms.size >= MAX_ROOMS) throw new GameError('Server is busy — try again shortly.');
     socket.data.lastCreate = now;
     const code = makeCode();
-    const room = { game: new GAMES[gameType](), gameType, createdAt: now, lastActivity: now, recorded: false };
+    const room = { game: new GAMES[gameType](), gameType, createdAt: now, lastActivity: now, recorded: false, likeCount: 0 };
     rooms.set(code, room);
     const player = joinSocketToRoom(code, room, pid, name);
     ack(cb, { ok: true, code, game: gameType, you: { id: player.id, name: player.name } });
@@ -164,6 +210,7 @@ io.on('connection', (socket) => {
     if (!room) throw new GameError('You are not in a room.');
     room.game.rematch(socket.data.id);
     room.recorded = false;
+    room.likeCount = 0; // fresh tally each game — don't let a near-threshold count surprise-flip the rematch
     ack(cb, { ok: true });
     broadcast(socket.data.code);
   }));
@@ -179,6 +226,11 @@ io.on('connection', (socket) => {
     const safe = isStr(emoji) ? emoji.slice(0, 8) : '';
     if (!safe) return;
     io.to(socket.data.code).emit('reaction', { from: player.name, fromId: player.id, emoji: safe });
+    // Tally 👍 from the whole party; once it hits the threshold, flip 31 <-> Crazy 8s.
+    if (safe === '👍' && SWITCH_PAIR[room.gameType]) {
+      room.likeCount = (room.likeCount || 0) + 1;
+      if (room.likeCount >= LIKE_SWITCH_THRESHOLD) switchGame(socket.data.code);
+    }
   });
 
   socket.on('leave', guard((_p, cb) => {

@@ -41,7 +41,10 @@ Persistence is optional locally — set the env vars below to enable it.
 ```bash
 npm test                       # engine fuzz: thousands of random games + invariants
 node test-integration.js 3000  # drives real socket clients through a full game
+node test-switch.js 3000       # party-likes easter egg: 👍 flood toggles 31 <-> Crazy 8s
 ```
+(the integration/switch tests need a server on that port and `socket.io-client` —
+`npm i --no-save socket.io-client` if it isn't already present.)
 
 ## Environment variables
 | var | purpose |

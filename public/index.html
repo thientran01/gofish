@@ -182,8 +182,8 @@
   .react-bar{display:flex;gap:6px;justify-content:center;margin-top:10px;flex-wrap:wrap;}
   .react-bar button{font-size:1.25rem;padding:.25em .45em;border-radius:10px;background:rgba(255,255,255,.06);transition:transform .1s,background .15s;}
   .react-bar button:hover{background:rgba(255,255,255,.14);transform:scale(1.12);}
-  .float-emoji{position:fixed;font-size:2.2rem;pointer-events:none;z-index:200;animation:floatUp 2s ease-out forwards;}
-  @keyframes floatUp{0%{opacity:0;transform:translateY(10px) scale(.6);}15%{opacity:1;}100%{opacity:0;transform:translateY(-160px) scale(1.3);}}
+  .float-emoji{position:fixed;font-size:2.2rem;pointer-events:none;z-index:200;animation:floatUp 1.05s ease-out forwards;}
+  @keyframes floatUp{0%{opacity:0;transform:translateY(10px) scale(.6);}12%{opacity:1;}100%{opacity:0;transform:translateY(-170px) scale(1.3);}}
 
   .logdrawer{position:fixed;top:0;right:0;height:100dvh;width:min(330px,86vw);background:rgba(7,20,15,.96);border-left:1px solid rgba(255,255,255,.12);transform:translateX(100%);transition:transform .25s ease;z-index:60;display:flex;flex-direction:column;backdrop-filter:blur(12px);}
   .logdrawer.open{transform:translateX(0);}
@@ -557,7 +557,7 @@
   $('rulesClose').onclick = ()=> $('rulesModal').classList.add('hidden');
   $('revealNext').onclick = ()=> socket.emit('move', {move:{type:'next_round'}}, (r)=>{ if(r&&!r.ok) toast(r.error); });
 
-  const REACTIONS = ['👍','😂','🃏','😱','🔥','🤝'];
+  const REACTIONS = ['👍','❤️','😂','🃏','😱','🔥','🤝'];
   (function buildReactBar(){ const bar=$('reactBar'); bar.innerHTML=''; REACTIONS.forEach(e=>{ const b=document.createElement('button'); b.textContent=e; b.onclick=()=>{ buzz(6); socket.emit('react',{emoji:e}); }; bar.appendChild(b); }); })();
 
   function doMove(move){ buzz(10); socket.emit('move', {move}, (r)=>{ if(r&&!r.ok) toast(r.error); }); }
@@ -573,6 +573,7 @@
   socket.on('state', (s)=>{ state = s; reconcileSelection(s); render(s); feedback(s); });
   socket.on('error_msg', (m)=> toast(m));
   socket.on('reaction', (r)=> floatEmoji(r.emoji));
+  socket.on('system', (m)=> toast(m));
 
   function reconcileSelection(s){
     if(!s.you || s.gameType!=='gofish' || !s.isYourTurn){ selTarget=null; selRank=null; }
@@ -581,6 +582,7 @@
       if(selRank && !(s.askableRanks||[]).includes(selRank)) selRank=null;
     }
     // crazy 8s: drop a pending suit choice if it's no longer our turn / card gone
+    if(s.gameType!=='crazy8s') pendingEight=null; // game switched away — clear stale suit-picker state
     if(s.gameType==='crazy8s' && pendingEight){
       const have = s.you && s.you.hand.some(c=>c.id===pendingEight && (s.playableIds||[]).includes(c.id));
       if(!s.isYourTurn || !have) pendingEight=null;
@@ -878,7 +880,7 @@
   }
 
   // ---------- fx ----------
-  function floatEmoji(e){ const el=document.createElement('div'); el.className='float-emoji'; el.textContent=e; el.style.left=(20+Math.random()*60)+'vw'; el.style.top='62vh'; document.body.appendChild(el); setTimeout(()=>el.remove(),2000); }
+  function floatEmoji(e){ const el=document.createElement('div'); el.className='float-emoji'; el.textContent=e; el.style.left=(20+Math.random()*60)+'vw'; el.style.top='62vh'; document.body.appendChild(el); setTimeout(()=>el.remove(),1100); }
   let toastTimer=null;
   function toast(msg){ const t=$('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove('show'),2600); }
   function esc(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
